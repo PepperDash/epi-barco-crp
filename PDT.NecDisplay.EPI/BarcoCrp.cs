@@ -18,148 +18,59 @@ namespace PDT.BarcoCrp.EPI
 	/// <summary>
 	/// 
 	/// </summary>
-	public class PdtBarcoCrp : TwoWayDisplayBase, ICommunicationMonitor, IBridgeAdvanced
+	public class PdtBarcoCrp : EssentialsBridgeableDevice, ICommunicationMonitor, IBridgeAdvanced
 	{
 		public IBasicCommunication Communication { get; private set; }
 		public CommunicationGather PortGather { get; private set; }
 		public StatusMonitorBase CommunicationMonitor { get; private set; }
-		private int PollState = 0; 
-		#region Command constants
+		private int PollState = 0;
+		private uint DebugLevel = 0;
+		private string _CurrentPerspective;
+		public Dictionary<int, StringWithFeedback> CurrentRoutesFeedbacks;
+		public int NumberOfTiles = 10;
+		string _ID;
+		BarcoCrpConfigObject _Config;
 
-        public const string HeaderCmd = "\x01\x30";
-        public const string InputGetCmd = "\x30\x43\x30\x36\x02\x30\x30\x36\x30\x03"; 
-        public const string Hdmi1Cmd = "\x30\x45\x30\x41\x02\x31\x31\x30\x36\x30\x30\x31\x31\x03"; 
-        public const string Hdmi2Cmd = "\x30\x45\x30\x41\x02\x31\x31\x30\x36\x30\x30\x31\x32\x03"; 
-        public const string Hdmi3Cmd = "\x30\x45\x30\x41\x02\x31\x31\x30\x36\x30\x30\x38\x32x03"; 
-        public const string Hdmi4Cmd = "\x30\x45\x30\x41\x02\x31\x31\x30\x36\x30\x30\x38\x33\x03"; 
-        public const string Dp1Cmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x30\x46\x03"; 
-        public const string Dp2Cmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x31\x30\x03"; 
-        public const string Dvi1Cmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x30\x33\x03"; 
-        public const string Video1Cmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x30\x35\x03"; 
-        public const string VgaCmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x30\x31\x03"; 
-        public const string RgbCmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x30\x30\x30\x30\x32\x03"; 
-
-        public const string PowerOnCmd = "\x30\x41\x30\x43\x02\x43\x32\x30\x33\x44\x36\x30\x30\x30\x31\x03"; 
-        public const string PowerOffCmd = "\x30\x41\x30\x43\x02\x43\x32\x30\x33\x44\x36\x30\x30\x30\x34\x03"; 
-        public const string PowerToggleIrCmd = "\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x30\x33\x30\x33\x03"; 
-        public const string PowerPoll = "\x30\x41\x30\x36\x02\x30\x31\x64\x36\x03"; 
-
-        public const string MuteOffCmd = "\x30\x45\x30\x41\x02\x30\x30\x38\x44\x30\x30\x30\x30\x03"; 
-        public const string MuteOnCmd = "\x30\x45\x30\x41\x02\x30\x30\x38\x44\x30\x30\x30\x31\x03"; 
-        public const string MuteToggleIrCmd = "\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x31\x42\x30\x33\x03"; 
-        public const string MuteGetCmd = "\x30\x43\x30\x36\x02\x30\x30\x38\x44\x03";
-
-        public const string PictureMuteOnCmd = "\x30\x45\x30\x41\x02\x31\x30\x42\x36\x30\x30\x30\x31\x03";
-        public const string PictureMuteOffCmd = "\x30\x45\x30\x41\x02\x31\x30\x42\x36\x30\x30\x30\x32\x03";
-
-        public const string MatrixModeOnCmd = "\x30\x45\x30\x41\x02\x30\x32\x44\x33\x30\x30\x30\x32\x03";
-        public const string MatrixModeOffCmd = "\x30\x45\x30\x41\x02\x30\x32\x44\x33\x30\x30\x30\x31\x03";
-
-        public const string VolumeGetCmd = "\x30\x43\x30\x36\x02\x30\x30\x36\x32\x03"; 
-        public const string VolumeLevelPartialCmd = "\x30\x45\x30\x41\x02\x30\x30\x36\x32"; 
-        public const string VolumeUpCmd = "\x30\x45\x30\x41\x02\x31\x30\x41\x44\x30\x30\x30\x31\x03"; 
-        public const string VolumeDownCmd = "\x30\x45\x30\x41\x02\x31\x30\x41\x44\x30\x30\x30\x32\x03"; 
-
-        public const string MenuIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x32\x30\x30\x33\x03\x03\x0D";
-        public const string UpIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x31\x35\x30\x33\x03\x05\x0D";
-        public const string DownIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x31\x34\x30\x33\x03\x04\x0D";
-        public const string LeftIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x32\x31\x30\x33\x03\x02\x0D";
-        public const string RightIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x32\x32\x30\x33\x03\x01\x0D";
-        public const string SelectIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x32\x33\x30\x33\x03\x00\x0D";
-        public const string ExitIrCmd = "\x41\x30\x41\x30\x43\x02\x43\x32\x31\x30\x30\x30\x31\x46\x30\x33\x03\x76\x0D";
-		#endregion
-
-		bool _PowerIsOn;
-		bool _IsWarmingUp;
-		bool _IsCoolingDown;
-		ushort _VolumeLevel;
-		ushort _CurrentInput;
-		bool _IsMuted;
-       byte _ID;
-
-		bool _VideoIsMuted;
-		public bool VideoIsMuted
-		{
-			get
-			{
-				return _VideoIsMuted;
-			}
-			set
-			{
-				_VideoIsMuted = value;
-				VideoIsMutedFeedback.FireUpdate();
-			}
-		}
-		public BoolFeedback VideoIsMutedFeedback;
-       public ushort CurrentInput {
-           get
-           {
-               return _CurrentInput; 
-
-           } 
-           set
-           {
-               _CurrentInput = value; 
-                CurrentInputFeedback.FireUpdate(); 
-           }
-       }
        public IntFeedback CurrentInputFeedback;
-
-		protected override Func<bool> PowerIsOnFeedbackFunc { get { return () => _PowerIsOn; } }
-		protected override Func<bool> IsCoolingDownFeedbackFunc { get { return () => _IsCoolingDown; } }
-		protected override Func<bool> IsWarmingUpFeedbackFunc { get { return () => _IsWarmingUp; } }
-		protected override Func<string> CurrentInputFeedbackFunc { get { return () => "Not Implemented"; } }
-	
 
 		/// <summary>
 		/// Constructor for IBasicCommunication with id passed from the device properties in the config file
 		/// </summary>
-        public PdtBarcoCrp(string key, string name, IBasicCommunication comm, string id)
+	   public PdtBarcoCrp(string key, string name, IBasicCommunication comm, BarcoCrpConfigObject config)
 			: base(key, name)
 		{
-           _ID = id == null ? (byte)0x2A : Convert.ToByte(id); 
+		   _Config = config;
            Communication = comm;
 			Init();
+			if (NumberOfTiles != 0)
+			{
+				NumberOfTiles = _Config.NumberOfTiles;
+			}
+			CurrentRoutesFeedbacks = new Dictionary<int, StringWithFeedback>();
+			for (var x = 1; x <= NumberOfTiles; x++)
+			{
+				CurrentRoutesFeedbacks.Add(x, new StringWithFeedback()); 
+			}
+			foreach (var item in CurrentRoutesFeedbacks)
+			{
+				Debug.Console(0, this, "CurrentRoutesFeedbacks : {0}", item.Key);
+			}
 		}
 
-        /// <summary>
-        /// Constructor for IBasicCommunication when no id is in the properties of the config file
-        /// </summary>
-        public PdtBarcoCrp(string key, string name, IBasicCommunication comm)
-            : base(key, name)
-        {
-            _ID = (byte)0x2A; 
-            Communication = comm;
-            Init();
-        }
-
-		/// <summary>
-		/// Constructor for TCP
-		/// </summary>
-        public PdtBarcoCrp(string key, string name, string hostname, int port, string id)
-			: base(key, name)
-		{
-            _ID = id == null ? (byte)0x2A : Convert.ToByte(id);
-			Communication = new GenericTcpIpClient(key + "-tcp", hostname, port, 5000);
-			Init();
-		}
-
-		/// <summary>
-		/// Constructor for COM
-		/// </summary>
-        public PdtBarcoCrp(string key, string name, ComPort port, ComPort.ComPortSpec spec, string id)
-			: base(key, name)
-		{
-            _ID = id == null ? (byte)0x2A : Convert.ToByte(id); // If id is null, set default value of 0x2A (all displays command in NEC), otherwise assign value passed in constructor
-			Communication = new ComPortController(key + "-com", port, spec);
-			Init();
-		}
 
 		void Init()
 		{
 			PortGather = new CommunicationGather(Communication, '>');
 			PortGather.LineReceived += this.Port_LineReceived;
-			CommunicationMonitor = new GenericCommunicationMonitor(this, Communication, 30000, 120000, 300000, Poll);                
+			CommunicationMonitor = new GenericCommunicationMonitor(this, Communication, 30000, 120000, 300000, Poll);
+			var socket = Communication as ISocketStatus;
+
+			if (socket != null)
+			{
+				// This instance uses IP control
+				socket.ConnectionChange += socket_ConnectionChange;
+
+			}
 		}
 
 		~PdtBarcoCrp()
@@ -170,21 +81,102 @@ namespace PDT.BarcoCrp.EPI
 		public override bool CustomActivate()
 		{
 			Communication.Connect();
-			CommunicationMonitor.StatusChange += (o, a) => { Debug.Console(2, this, "Communication monitor state: {0}", CommunicationMonitor.Status); };
+			CommunicationMonitor.StatusChange += new EventHandler<MonitorStatusChangeEventArgs>(CommunicationMonitor_StatusChange);
 			CommunicationMonitor.Start();
 			return true;
 		}
 
-		public void LinkToApi(BasicTriList trilist, uint joinStart, string joinMapKey, EiscApiAdvanced bridge)
+		void CommunicationMonitor_StatusChange(object sender, MonitorStatusChangeEventArgs e)
+		{
+			Debug.Console(2, this, "Communication monitor state: {0}", CommunicationMonitor.Status);
+			
+		}
+
+		void socket_ConnectionChange(object sender, GenericSocketStatusChageEventArgs e)
+		{
+			Debug.Console(2, this, "Socket Status Change: {0}", e.Client.ClientStatus.ToString());
+
+			if (e.Client.IsConnected)
+			{
+				if (!string.IsNullOrEmpty(_Config.DefaultPerspective))
+				{
+					LoadPerspective(_Config.DefaultPerspective);
+				}
+				else
+				{
+
+					GetCurrentRoutes();
+				}
+			}
+
+			if (!e.Client.IsConnected)
+			{
+			}
+			else
+			{
+
+			}
+		}
+		public void SendCommand(string command)
+		{
+
+				string cmd = string.Format("<I:{0}||K:CMS||O:{1}>\n", _Config.HostId, command);
+				Communication.SendText(cmd);
+				Debug.Console(DebugLevel, this, "Sent: '{0}'", cmd);
+			
+		}
+		public void SendCommand(string command, string[] args)
+		{
+			if(args.Length == 1)
+			{
+				string cmd = string.Format("<I:{0}||K:CMS||O:{1}||A1:{2}||>\n", _Config.HostId, command, args[0]);
+				Communication.SendText(cmd);
+				Debug.Console(DebugLevel, this, "Sent: '{0}'", cmd);
+			}
+			else if(args.Length == 2)
+			{
+				string cmd = string.Format("<I:{0}||K:CMS||O:{1}||A1:{2}||A2:{3}||>\n", _Config.HostId, command, args[0], args[1]);
+				Communication.SendText(cmd);
+				Debug.Console(DebugLevel, this, "Sent: '{0}'", cmd);
+			}
+			else if (args.Length == 3)
+			{
+				string cmd = string.Format("<I:{0}||K:CMS||O:{1}||A1:{2}||A2:{3}||A3:{4}||>\n", _Config.HostId, command, args[0], args[1], args[2]);
+				Communication.SendText(cmd);
+				Debug.Console(DebugLevel, this, "Sent: '{0}'", cmd);
+			}
+		}
+		public override void LinkToApi(BasicTriList trilist, uint joinStart, string joinMapKey, EiscApiAdvanced bridge)
 		{
 			PdtBarcoCrpBridge.LinkToApiExt(this, trilist, joinStart, joinMapKey);
 		}
 
-		public override FeedbackCollection<Feedback> Feedbacks
+		public void LoadPerspective(string preset)
+		{
+			string[] args = { preset, _Config.DisplayID  };
+			_CurrentPerspective = preset;
+			SendCommand("LoadPerspective", args);
+			GetCurrentRoutes();
+		}
+
+		public void LoadSource(string source, int tile)
+		{
+			string[] args = { _CurrentPerspective, source, string.Format("{0}", tile) };
+			SendCommand("LoadSourceOnPerspective", args);
+			GetCurrentRoutes();
+		}
+
+		public void GetCurrentRoutes()
+		{
+			string[] args = { _CurrentPerspective };
+			SendCommand("getDispletList", args); 
+		}
+
+		public FeedbackCollection<Feedback> Feedbacks
 		{
 			get
 			{
-				var list = base.Feedbacks;
+				var list = Feedbacks;
 				list.AddRange(new List<Feedback>
 				{
 
@@ -207,124 +199,67 @@ namespace PDT.BarcoCrp.EPI
 			//PollState++; 
 			
 		}
+		
 
 		void Port_LineReceived(object dev, GenericCommMethodReceiveTextArgs args)
 		{
-			if (Debug.Level == 2)
-				Debug.Console(2, this, "Received: '{0}'", ComTextHelper.GetEscapedText(args.Text));
-
-			if (args.Text == "DO SOMETHING HERE EVENTUALLY")
+			try
 			{
+				Debug.Console(DebugLevel, this, "Received: '{0}'", args.Text);
 
+				if (args.Text.Contains("REgetDispletList"))
+				{
+					var responseWhole = args.Text.Split('|', '|')[6];
+					var responseSplit = responseWhole.Split(',');
+
+					int x = 2;
+					for (x = 2; x < responseSplit.Length; x = x + 6)
+					{
+						var item =  int.Parse(responseSplit[x + 1]);
+						Debug.Console(DebugLevel, this, "Item {0}: '{1}'", item, responseSplit[x]);
+						CurrentRoutesFeedbacks[item].Value = responseSplit[x];
+					}
+
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.Console(0, this, "Error Processing Port_LineReceived: {0}", e);
 			}
 		}
 
 		void Send(string s)
 		{
-			Debug.Console(2, this, "Send: '{0}'", ComTextHelper.GetEscapedText(s));
+			Debug.Console(DebugLevel, this, "Send: '{0}'", ComTextHelper.GetEscapedText(s));
 			Communication.SendText(s);
 		}
 
 
-		public override void PowerOn()
-		{
-			if (!PowerIsOnFeedback.BoolValue && !_IsWarmingUp && !_IsCoolingDown)
-			{
-				_IsWarmingUp = true;
-				IsWarmingUpFeedback.FireUpdate();
-				// Fake power-up cycle
-				WarmupTimer = new CTimer(o =>
-				{
-					_IsWarmingUp = false;
-					_PowerIsOn = true;
-					IsWarmingUpFeedback.FireUpdate();
-					PowerIsOnFeedback.FireUpdate();
-				}, WarmupTime);
-			}
-		}
-
-		public override void PowerOff()
-		{
-			// If a display has unreliable-power off feedback, just override this and
-			// remove this check.
-				_IsCoolingDown = true;
-				_PowerIsOn = false;
-				PowerIsOnFeedback.FireUpdate();
-				IsCoolingDownFeedback.FireUpdate();
-				// Fake cool-down cycle
-				CooldownTimer = new CTimer(o =>
-				{
-					Debug.Console(2, this, "Cooldown timer ending");
-					_IsCoolingDown = false;
-					IsCoolingDownFeedback.FireUpdate();
-				}, CooldownTime);
-		}
-
-		public override void PowerToggle()
-		{
-			if (PowerIsOnFeedback.BoolValue && !IsWarmingUpFeedback.BoolValue)
-				PowerOff();
-			else if (!PowerIsOnFeedback.BoolValue && !IsCoolingDownFeedback.BoolValue)
-				PowerOn();
-		}
-
-        public void PictureMuteOn()
-        {
-			VideoIsMuted = true;
-        }
-
-        public void PictureMuteOff()
-        {
-         	VideoIsMuted = false;
-        }
-
-        public void PictureMuteToggle()
-        {
-			Debug.Console(2, this, "PictureMuteToggle: '{0}'", VideoIsMuted);
-			if (!VideoIsMuted)
-			{
-				PictureMuteOn();
-			}
-			else
-			{
-				PictureMuteOff();
-			}
-
-        }
-
-
-
-		public override void ExecuteSwitch(object selector)
-		{
-			if (selector is Action)
-				(selector as Action).Invoke();
-			else
-				Debug.Console(1, this, "WARNING: ExecuteSwitch cannot handle type {0}", selector.GetType());
-			//Send((string)selector);
-		}
-
 	}
 
-	public class NecPSXMDisplayFactory : EssentialsDeviceFactory<PdtBarcoCrp>
+	public class PdtBarcoCrpFactory : EssentialsPluginDeviceFactory<PdtBarcoCrp>
 	{
-		public NecPSXMDisplayFactory()
+		public PdtBarcoCrpFactory()
 		{
-			TypeNames = new List<string>() { "necmpsx" };
+			MinimumEssentialsFrameworkVersion = "1.9.7";
+			TypeNames = new List<string>() { "barcocrp", "barcocms", "BarcoCms" };
 		}
 
 		public override EssentialsDevice BuildDevice(DeviceConfig dc)
 		{
-			Debug.Console(1, "Factory Attempting to create new Generic Comm Device");
+			Debug.Console(1, "Factory Attempting to create new PdtBarcoCrpFactory Device");
 			var comm = CommFactory.CreateCommForDevice(dc);
+			var config = dc.Properties.ToObject<BarcoCrpConfigObject>();
 			if (comm != null)
                 try
                 {
-                    var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, dc.Properties["id"].Value<string>());
+					
+                    var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, config );
                     return newMe;
                 }
                 catch
                 {
-                    var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm);
+                    var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, config);
                     return newMe;
                 }
 			else
@@ -332,4 +267,4 @@ namespace PDT.BarcoCrp.EPI
 		}
 	}
 
-}
+}	

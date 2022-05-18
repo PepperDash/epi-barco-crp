@@ -23,18 +23,18 @@ namespace PDT.BarcoCrp.EPI
 
 		public static PdtBarcoCrp BuildDevice(DeviceConfig dc)
 		{
-			var config = JsonConvert.DeserializeObject<DeviceConfig>(dc.Properties.ToString());
+			var config = JsonConvert.DeserializeObject<BarcoCrpConfigObject>(dc.Properties.ToString());
 			var comm = CommFactory.CreateCommForDevice(dc);
             try
             {
                // if there is no id in the config file an exception is thrown
-               var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, dc.Properties["id"].Value<string>());
+               var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, config);
                return newMe;
             }
             catch
             {
                 // if there is no id in the config file an exception is thrown.  id will default to (0x2a) the all displays command
-                var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm);
+                var newMe = new PdtBarcoCrp(dc.Key, dc.Name, comm, config);
                 return newMe;
             }
 		}
