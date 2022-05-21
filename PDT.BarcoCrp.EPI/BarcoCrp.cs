@@ -12,6 +12,7 @@ using PepperDash.Essentials.Core.Bridges;
 using PepperDash.Essentials.Core.Routing;
 using Feedback = PepperDash.Essentials.Core.Feedback;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace PDT.BarcoCrp.EPI
 {
@@ -24,14 +25,12 @@ namespace PDT.BarcoCrp.EPI
 		public CommunicationGather PortGather { get; private set; }
 		public StatusMonitorBase CommunicationMonitor { get; private set; }
 		private int PollState = 0;
-		private uint DebugLevel = 0;
-		private string _CurrentPerspective;
+		private uint DebugLevel = 2;
+		public StringWithFeedback CurrentPerspective;
 		public Dictionary<int, StringWithFeedback> CurrentRoutesFeedbacks;
 		public int NumberOfTiles = 10;
 		string _ID;
 		BarcoCrpConfigObject _Config;
-
-       public IntFeedback CurrentInputFeedback;
 
 		/// <summary>
 		/// Constructor for IBasicCommunication with id passed from the device properties in the config file
@@ -41,7 +40,7 @@ namespace PDT.BarcoCrp.EPI
 		{
 		   _Config = config;
            Communication = comm;
-			Init();
+			
 			if (NumberOfTiles != 0)
 			{
 				NumberOfTiles = _Config.NumberOfTiles;
@@ -53,8 +52,10 @@ namespace PDT.BarcoCrp.EPI
 			}
 			foreach (var item in CurrentRoutesFeedbacks)
 			{
-				Debug.Console(0, this, "CurrentRoutesFeedbacks : {0}", item.Key);
+				Debug.Console(2, this, "CurrentRoutesFeedbacks : {0}", item.Key);
 			}
+			CurrentPerspective = new StringWithFeedback();
+			Init();
 		}
 
 
@@ -98,6 +99,7 @@ namespace PDT.BarcoCrp.EPI
 
 			if (e.Client.IsConnected)
 			{
+				GetCurrentPerspective();
 				if (!string.IsNullOrEmpty(_Config.DefaultPerspective))
 				{
 					LoadPerspective(_Config.DefaultPerspective);
@@ -148,30 +150,96 @@ namespace PDT.BarcoCrp.EPI
 		}
 		public override void LinkToApi(BasicTriList trilist, uint joinStart, string joinMapKey, EiscApiAdvanced bridge)
 		{
-			PdtBarcoCrpBridge.LinkToApiExt(this, trilist, joinStart, joinMapKey);
+
+			BarcoCrpJoinMap joinMap = new BarcoCrpJoinMap(joinStart);
+
+			var JoinMapSerialized = JoinMapHelper.GetJoinMapForDevice(joinMapKey);
+
+			if (!string.IsNullOrEmpty(JoinMapSerialized))
+				joinMap = JsonConvert.DeserializeObject<BarcoCrpJoinMap>(JoinMapSerialized);
+
+			//joinMap.OffsetJoinNumbers(joinStart);
+
+			trilist.OnlineStatusChange += (o,a) => {
+				if (a.DeviceOnLine)
+				{
+					var tempJoinNum = joinMap.LoadSource.JoinNumber;
+					foreach (var item in CurrentRoutesFeedbacks)
+					{
+						Debug.Console(0, "*** Linking to Barco: {0} {1}", item.Key, item.Value.Value);
+						trilist.StringInput[(ushort)(item.Key + tempJoinNum)].StringValue = item.Value.Value;
+					}
+				}
+			};
+
+			Debug.Console(1, "*** Linking to Trilist '{0}'", trilist.ID.ToString("X"));
+			Debug.Console(0, "*** Linking to Barco: {0}", this.Name);
+
+			// trilist.StringInput[joinMap.Joins[].StringValue = device.Name;	
+			trilist.SetSigTrueAction(joinMap.Poll.JoinNumber, () => GetCurrentRoutes());
+
+			trilist.SetStringSigAction(joinMap.LoadPerspective.JoinNumber, (s) => LoadPerspective(s));
+			CurrentPerspective.Feedback.LinkInputSig(trilist.StringInput[joinMap.LoadPerspective.JoinNumber]);
+
+			var outputNum = 1;
+			foreach (var item in CurrentRoutesFeedbacks)
+			{
+				var tempOutputNum = outputNum;
+				item.Value.Feedback.LinkInputSig(trilist.StringInput[(ushort)(joinMap.LoadSource.JoinNumber + tempOutputNum)]);
+				outputNum++;
+				Debug.Console(0, "*** Linking to Feedback: {0}", tempOutputNum);
+			}
+
+			for (var x = 1; x < 10; x++)
+			{
+				var tempx = x;
+				trilist.SetStringSigAction((uint)(joinMap.LoadSource.JoinNumber + tempx), (s) => LoadSource(s, tempx));
+			}
+
+			var commMonitor = this as ICommunicationMonitor;
+			if (commMonitor != null)
+			{
+				commMonitor.CommunicationMonitor.IsOnlineFeedback.LinkInputSig(trilist.BooleanInput[joinMap.IsOnline.JoinNumber]);
+			}
+		}
+
+		void trilist_OnlineStatusChange(GenericBase currentDevice, OnlineOfflineEventArgs args)
+		{
+			if (args.DeviceOnLine)
+			{
+				foreach (var item in CurrentRoutesFeedbacks)
+				{
+					item.Value.Feedback.FireUpdate();
+				}
+			}
 		}
 
 		public void LoadPerspective(string preset)
 		{
 			string[] args = { preset, _Config.DisplayID  };
-			_CurrentPerspective = preset;
+			CurrentPerspective.Value = preset;
 			SendCommand("LoadPerspective", args);
 			GetCurrentRoutes();
 		}
 
 		public void LoadSource(string source, int tile)
 		{
-			string[] args = { _CurrentPerspective, source, string.Format("{0}", tile) };
+			string[] args = { CurrentPerspective.Value, source, string.Format("{0}", tile) };
 			SendCommand("LoadSourceOnPerspective", args);
 			GetCurrentRoutes();
 		}
 
 		public void GetCurrentRoutes()
 		{
-			string[] args = { _CurrentPerspective };
+			string[] args = { CurrentPerspective.Value };
 			SendCommand("getDispletList", args); 
 		}
 
+		public void GetCurrentPerspective()
+		{
+			string[] args = { _Config.DisplayID };
+			SendCommand("GetSharedPerspectiveList", args);
+		}
 		public FeedbackCollection<Feedback> Feedbacks
 		{
 			get
@@ -188,15 +256,17 @@ namespace PDT.BarcoCrp.EPI
 		{
 			switch (PollState)
 			{
-				case 0: 
-					
+				case 0:
+					GetCurrentRoutes();
 					break;
-				
+				case 1:
+					GetCurrentPerspective();
+					break;
 				default:
 					PollState = 0;
 					return;
 			}
-			//PollState++; 
+			PollState++; 
 			
 		}
 		
@@ -220,6 +290,13 @@ namespace PDT.BarcoCrp.EPI
 						CurrentRoutesFeedbacks[item].Value = responseSplit[x];
 					}
 
+				}
+				else if (args.Text.Contains(":REGetSharedPerspectiveList"))
+				{
+					var responseWhole = args.Text.Split('|', '|')[6];
+					responseWhole = responseWhole.Remove(0, 3);
+					Debug.Console(DebugLevel, this, "REGetSharedPerspectiveList {0}'", responseWhole);
+					CurrentPerspective.Value = responseWhole;
 				}
 			}
 			catch (Exception e)

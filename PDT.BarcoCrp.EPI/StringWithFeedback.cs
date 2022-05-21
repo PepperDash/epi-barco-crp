@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Crestron.SimplSharp;
 using PepperDash.Essentials.Core;
+using PepperDash.Core;
 
 namespace PDT.BarcoCrp.EPI
 {
@@ -26,7 +27,11 @@ namespace PDT.BarcoCrp.EPI
 		public StringWithFeedback()
 			
 		{
-			Feedback = new StringFeedback(() => Value);
+			Feedback = new StringFeedback(() => {
+				//Debug.Console(0, "StringFeedback: {0}", Value);
+				return Value;
+			});
+			
 		}
 	}
 }
