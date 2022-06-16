@@ -281,13 +281,18 @@ namespace PDT.BarcoCrp.EPI
 				{
 					var responseWhole = args.Text.Split('|', '|')[6];
 					var responseSplit = responseWhole.Split(',');
-
+					Debug.Console(DebugLevel, this, "responseWhole {0}", responseWhole);
 					int x = 2;
 					for (x = 2; x < responseSplit.Length; x = x + 6)
 					{
+						Debug.Console(DebugLevel, this, "responseSplit {0} {1}", x, responseSplit[x+1]);
+						
 						var item =  int.Parse(responseSplit[x + 1]);
 						Debug.Console(DebugLevel, this, "Item {0}: '{1}'", item, responseSplit[x]);
-						CurrentRoutesFeedbacks[item].Value = responseSplit[x];
+						if (item != 0)
+						{
+							CurrentRoutesFeedbacks[item].Value = responseSplit[x];
+						}
 					}
 
 				}
